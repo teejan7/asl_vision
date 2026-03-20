@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ASL VISION — NEURAL INTERFACE</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --neon-cyan:   #00ffe7;
+    --neon-pink:   #ff2d78;
+    --neon-purple: #b400ff;
+    --neon-green:  #39ff14;
+    --neon-yellow: #ffe600;
+    --dark:        #020812;
+    --dark2:       #040f1e;
+    --panel:       rgba(0,255,231,0.04);
+    --border:      rgba(0,255,231,0.15);
+    --glow-cyan:   0 0 10px #00ffe7, 0 0 30px rgba(0,255,231,0.3);
+    --glow-pink:   0 0 10px #ff2d78, 0 0 30px rgba(255,45,120,0.3);
+    --glow-green:  0 0 10px #39ff14, 0 0 30px rgba(57,255,20,0.3);
+    --glow-yellow: 0 0 10px #ffe600, 0 0 30px rgba(255,230,0,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark);
+    color: var(--neon-cyan);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,231,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,231,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(0,8,18,0.9);
+    backdrop-filter: blur(10px);
+  }
+
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: var(--neon-cyan);
+    text-shadow: var(--glow-cyan);
+  }
+  .logo span { color: var(--neon-pink); text-shadow: var(--glow-pink); }
+
+  .status-bar { display: flex; align-items: center; gap: 20px; font-size: 11px; letter-spacing: 2px; }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--neon-green);
+    box-shadow: var(--glow-green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:0.4; transform:scale(0.8); }
+  }
+
+  .sys-info { color: rgba(0,255,231,0.5); font-size: 10px; }
+
+  main {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 16px;
+    padding: 16px 24px;
+    height: calc(100vh - 61px);
+  }
+
+  /* ── Camera panel ── */
+  .camera-panel {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .camera-panel::after {
+    content: '';
+    position: absolute;
+    top: 8px; left: 8px;
+    width: 20px; height: 20px;
+    border-top: 2px solid var(--neon-cyan);
+    border-left: 2px solid var(--neon-cyan);
+    box-shadow: var(--glow-cyan);
+    z-index: 6;
+  }
+
+  .corner-br {
+    position: absolute;
+    bottom: 8px; right: 8px;
+    width: 20px; height: 20px;
+    border-bottom: 2px solid var(--neon-pink);
+    border-right: 2px solid var(--neon-pink);
+    box-shadow: var(--glow-pink);
+    z-index: 6;
+  }
+
+  #video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scaleX(-1);
+  }
+
+  #skeleton-canvas {
+    position: absolute; inset: 0;
+    z-index: 4; pointer-events: none;
+  }
+
+  .scan-line {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+    box-shadow: 0 0 8px var(--neon-cyan);
+    animation: scan 3s linear infinite;
+    z-index: 5; opacity: 0.5; pointer-events: none;
+  }
+  @keyframes scan { 0%{top:0%} 100%{top:100%} }
+
+  .cam-label {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    font-family: 'Orbitron', monospace; font-size: 10px;
+    letter-spacing: 4px; color: rgba(0,255,231,0.5); z-index: 7;
+  }
+
+  #fps { position: absolute; top: 16px; right: 16px; font-size: 10px; letter-spacing: 2px; color: rgba(0,255,231,0.4); z-index: 7; }
+
+  .hand-indicator {
+    position: absolute; bottom: 16px; left: 16px;
+    font-size: 10px; letter-spacing: 2px;
+    padding: 4px 10px; border: 1px solid; border-radius: 2px;
+    z-index: 7; transition: all 0.3s;
+  }
+  .hand-indicator.detected { color: var(--neon-green); border-color: var(--neon-green); box-shadow: var(--glow-green); }
+  .hand-indicator.none     { color: rgba(255,45,120,0.7); border-color: rgba(255,45,120,0.3); }
+
+  /* Voting bar */
+  .voting-bar-wrap {
+    position: absolute; bottom: 16px; right: 16px;
+    z-index: 7; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  }
+  .voting-label { font-size: 9px; letter-spacing: 2px; color: rgba(0,255,231,0.4); }
+  .voting-bar-bg {
+    width: 100px; height: 4px;
+    background: rgba(0,255,231,0.1);
+    border-radius: 2px; overflow: hidden;
+  }
+  .voting-bar-fill {
+    height: 100%; width: 0%;
+    background: var(--neon-cyan);
+    box-shadow: var(--glow-cyan);
+    border-radius: 2px;
+    transition: width 0.1s;
+  }
+
+  .no-hand-overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(2,8,18,0.75);
+    z-index: 8; pointer-events: none;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .no-hand-overlay.visible { opacity: 1; }
+  .no-hand-icon { font-size: 48px; margin-bottom: 12px; animation: float 2s ease-in-out infinite; }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  .no-hand-text { font-family:'Orbitron',monospace; font-size:12px; letter-spacing:4px; color:rgba(0,255,231,0.5); }
+
+  /* ── Right panels ── */
+  .right-panels { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+
+  .panel {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--panel);
+    padding: 16px 20px;
+    position: relative;
+  }
+
+  .panel-label {
+    font-size: 9px; letter-spacing: 4px;
+    color: rgba(0,255,231,0.4); margin-bottom: 10px;
+    font-family: 'Orbitron', monospace;
+  }
+
+  /* Letter */
+  .letter-display { display:flex; align-items:center; justify-content:center; height:100px; position:relative; }
+  .letter-bg { position:absolute; font-family:'Orbitron',monospace; font-size:180px; font-weight:900; color:rgba(0,255,231,0.03); line-height:1; pointer-events:none; user-select:none; }
+
+  #current-letter {
+    font-family: 'Orbitron', monospace; font-size: 88px; font-weight: 900;
+    color: var(--neon-cyan);
+    text-shadow: var(--glow-cyan), 0 0 60px rgba(0,255,231,0.15);
+    line-height: 1; transition: all 0.15s;
+  }
+  #current-letter.flash { animation: letterFlash 0.2s ease; }
+  @keyframes letterFlash {
+    0%   { transform:scale(1.3); color:#fff; text-shadow:0 0 40px #fff; }
+    100% { transform:scale(1); }
+  }
+
+  .stats { display:flex; gap:16px; font-size:10px; letter-spacing:2px; color:rgba(0,255,231,0.4); margin-top:8px; }
+  .stat-val { color: var(--neon-cyan); }
+
+  /* Letter strip */
+  .history-strip { display:flex; gap:6px; flex-wrap:wrap; min-height:32px; align-items:center; }
+  .history-letter {
+    font-family:'Orbitron',monospace; font-size:14px; font-weight:700;
+    padding:4px 8px; border:1px solid rgba(0,255,231,0.2);
+    border-radius:2px; color:rgba(0,255,231,0.6);
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:scale(0.8)} to{opacity:1;transform:scale(1)} }
+
+  /* Word */
+  .word-display {
+    font-family: 'Orbitron', monospace; font-size: 26px; font-weight: 700;
+    color: var(--neon-cyan); text-shadow: var(--glow-cyan);
+    letter-spacing: 4px; min-height: 38px; word-break:break-all; line-height:1.4;
+  }
+  .cursor {
+    display:inline-block; width:3px; height:26px;
+    background:var(--neon-cyan); box-shadow:var(--glow-cyan);
+    animation:blink 1s infinite; vertical-align:middle; margin-left:2px;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* Spell correction badge */
+  .spell-badge {
+    display: none;
+    font-size: 10px; letter-spacing: 2px;
+    padding: 3px 8px; border-radius: 2px;
+    color: var(--neon-yellow); border: 1px solid rgba(255,230,0,0.4);
+    text-shadow: var(--glow-yellow); margin-top: 6px;
+    animation: fadeIn 0.3s ease;
+  }
+  .spell-badge.visible { display: inline-block; }
+
+  /* Sentence */
+  #sentence-line {
+    font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 300;
+    color: rgba(0,255,231,0.8); letter-spacing: 2px;
+    line-height: 1.6; min-height: 50px; word-break:break-word;
+  }
+  .sentence-word { display:inline-block; margin-right:8px; padding:1px 4px; border-radius:2px; transition:all 0.3s; }
+  .sentence-word.new { color:var(--neon-green); text-shadow:var(--glow-green); animation:wordAppear 0.5s ease; }
+  .sentence-word.corrected { color:var(--neon-yellow); text-shadow:var(--glow-yellow); }
+  @keyframes wordAppear { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
+
+  /* Controls */
+  .controls { display:flex; gap:8px; flex-wrap:wrap; }
+  .btn {
+    font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:2px;
+    padding:8px 14px; border:1px solid; border-radius:2px;
+    cursor:pointer; background:transparent; transition:all 0.2s; text-transform:uppercase;
+  }
+  .btn-cyan  { color:var(--neon-cyan);  border-color:rgba(0,255,231,0.4); }
+  .btn-cyan:hover  { background:rgba(0,255,231,0.1); box-shadow:var(--glow-cyan); border-color:var(--neon-cyan); }
+  .btn-pink  { color:var(--neon-pink);  border-color:rgba(255,45,120,0.4); }
+  .btn-pink:hover  { background:rgba(255,45,120,0.1); box-shadow:var(--glow-pink); border-color:var(--neon-pink); }
+  .btn-green { color:var(--neon-green); border-color:rgba(57,255,20,0.4); }
+  .btn-green:hover { background:rgba(57,255,20,0.1); box-shadow:var(--glow-green); border-color:var(--neon-green); }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--dark); }
+  ::-webkit-scrollbar-thumb { background: rgba(0,255,231,0.3); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ASL<span>.</span>VISION</div>
+  <div class="status-bar">
+    <div class="status-dot"></div>
+    <span>NEURAL INTERFACE v2.0</span>
+    <span class="sys-info" id="sys-time">--:--:--</span>
+  </div>
+</header>
+
+<main>
+  <!-- Camera -->
+  <div class="camera-panel">
+    <div class="scan-line"></div>
+    <div class="cam-label">◈ LIVE FEED — CAM_01</div>
+    <div id="fps">-- FPS</div>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="skeleton-canvas"></canvas>
+    <div class="corner-br"></div>
+    <div class="hand-indicator none" id="hand-indicator">◌ NO HAND</div>
+    <div class="voting-bar-wrap">
+      <div class="voting-label">MAJORITY VOTE</div>
+      <div class="voting-bar-bg"><div class="voting-bar-fill" id="vote-fill"></div></div>
+    </div>
+    <div class="no-hand-overlay" id="no-hand-overlay">
+      <div class="no-hand-icon">✋</div>
+      <div class="no-hand-text">SHOW HAND TO CAMERA</div>
+    </div>
+  </div>
+
+  <!-- Right panels -->
+  <div class="right-panels">
+
+    <!-- Detected sign -->
+    <div class="panel">
+      <div class="panel-label">◈ DETECTED SIGN</div>
+      <div class="letter-display">
+        <div class="letter-bg" id="letter-bg">–</div>
+        <div id="current-letter">–</div>
+      </div>
+      <div class="stats">
+        <span>FRAMES: <span class="stat-val" id="frame-count">0</span></span>
+        <span>STABLE: <span class="stat-val" id="stable-count">0/10</span></span>
+      </div>
+    </div>
+
+    <!-- Letter stream -->
+    <div class="panel">
+      <div class="panel-label">◈ LETTER STREAM</div>
+      <div class="history-strip" id="history-strip">
+        <span style="color:rgba(0,255,231,0.2);font-size:11px;letter-spacing:2px;">AWAITING INPUT...</span>
+      </div>
+    </div>
+
+    <!-- Word formation -->
+    <div class="panel">
+      <div class="panel-label">◈ WORD FORMATION</div>
+      <div class="word-display">
+        <span id="current-word"></span><span class="cursor"></span>
+      </div>
+      <div class="spell-badge" id="spell-badge">⚡ SPELL CORRECTED</div>
+    </div>
+
+    <!-- Sentence -->
+    <div class="panel">
+      <div class="panel-label">◈ SENTENCE OUTPUT</div>
+      <div id="sentence-line">_</div>
+    </div>
+
+    <!-- Controls -->
+    <div class="panel">
+      <div class="panel-label">◈ CONTROLS</div>
+      <div class="controls">
+        <button class="btn btn-green"  onclick="commitWord()">✦ SPACE</button>
+        <button class="btn btn-pink"   onclick="deleteLetter()">⌫ DELETE</button>
+        <button class="btn btn-cyan"   onclick="clearAll()">◻ CLEAR ALL</button>
+        <button class="btn btn-cyan"   onclick="toggleCamera()">⊙ CAM TOGGLE</button>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+const state = {
+  currentWord:   '',
+  sentence:      [],
+  frameCount:    0,
+  lastVoted:     '',
+  sameVoteCount: 0,
+  STABLE_THRESH: 10,
+  COOLDOWN:      18,
+  cooldown:      0,
+  running:       true,
+  lastTime:      0,
+  voteBuffer:    [],
+};
+
+// ── Camera ─────────────────────────────────────────────────────────────────────
+const video   = document.getElementById('video');
+const skelCvs = document.getElementById('skeleton-canvas');
+const skelCtx = skelCvs.getContext('2d');
+
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width:{ideal:1280}, height:{ideal:720}, facingMode:'user' }
+    });
+    video.srcObject = stream;
+    video.onloadedmetadata = () => {
+      skelCvs.width  = video.videoWidth;
+      skelCvs.height = video.videoHeight;
+      loop();
+    };
+  } catch(e) { console.error('Camera error:', e); }
+}
+
+// ── Main prediction loop ───────────────────────────────────────────────────────
+async function loop() {
+  if (!state.running) return;
+
+  const now = performance.now();
+  const fps = Math.round(1000 / (now - state.lastTime + 0.001));
+  state.lastTime = now;
+  document.getElementById('fps').textContent = fps + ' FPS';
+  document.getElementById('sys-time').textContent =
+    new Date().toLocaleTimeString('en-US', {hour12:false});
+
+  const cvs = document.createElement('canvas');
+  cvs.width  = video.videoWidth  || 640;
+  cvs.height = video.videoHeight || 480;
+  cvs.getContext('2d').drawImage(video, 0, 0);
+  const b64 = cvs.toDataURL('image/jpeg', 0.8);
+
+  try {
+    const res  = await fetch('/predict', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({image: b64})
+    });
+    const data = await res.json();
+    processResult(data);
+  } catch(e) { /* skip frame */ }
+
+  requestAnimationFrame(loop);
+}
+
+// ── Process result ─────────────────────────────────────────────────────────────
+function processResult(data) {
+  state.frameCount++;
+  document.getElementById('frame-count').textContent = state.frameCount;
+
+  const noHand    = document.getElementById('no-hand-overlay');
+  const indicator = document.getElementById('hand-indicator');
+  const voteFill  = document.getElementById('vote-fill');
+
+  if (!data.hand) {
+    noHand.classList.add('visible');
+    indicator.className = 'hand-indicator none';
+    indicator.textContent = '◌ NO HAND';
+    skelCtx.clearRect(0, 0, skelCvs.width, skelCvs.height);
+    state.sameVoteCount = 0;
+    state.voteBuffer    = [];
+    voteFill.style.width = '0%';
+    return;
+  }
+
+  noHand.classList.remove('visible');
+  indicator.className = 'hand-indicator detected';
+  indicator.textContent = '◉ HAND LOCKED';
+
+  if (data.landmarks) drawSkeleton(data.landmarks);
+
+  // Use voted_letter for stability (majority vote from backend)
+  const voted = data.voted_letter;
+  if (!voted || voted === '–' || voted === 'nothing') {
+    state.sameVoteCount = 0;
+    return;
+  }
+
+  // Update letter display with voted letter
+  updateLetterDisplay(voted);
+
+  // Track stability of voted letter
+  if (voted === state.lastVoted) {
+    state.sameVoteCount = Math.min(state.sameVoteCount + 1, state.STABLE_THRESH);
+  } else {
+    state.sameVoteCount = 0;
+    state.lastVoted     = voted;
+  }
+
+  // Voting progress bar
+  const pct = (state.sameVoteCount / state.STABLE_THRESH) * 100;
+  voteFill.style.width = pct + '%';
+  document.getElementById('stable-count').textContent =
+    state.sameVoteCount + '/' + state.STABLE_THRESH;
+
+  // Commit when stable + not in cooldown
+  if (state.sameVoteCount >= state.STABLE_THRESH && state.cooldown === 0) {
+    commitLetter(voted);
+    state.sameVoteCount = 0;
+    state.cooldown = state.COOLDOWN;
+  }
+
+  if (state.cooldown > 0) state.cooldown--;
+}
+
+// ── UI updates ─────────────────────────────────────────────────────────────────
+function updateLetterDisplay(letter) {
+  const el = document.getElementById('current-letter');
+  const bg = document.getElementById('letter-bg');
+  if (el.textContent !== letter) {
+    el.textContent = letter;
+    bg.textContent = letter;
+    el.classList.remove('flash');
+    void el.offsetWidth;
+    el.classList.add('flash');
+  }
+}
+
+function commitLetter(letter) {
+  if (letter === 'del') {
+    if (state.currentWord.length > 0)
+      state.currentWord = state.currentWord.slice(0, -1);
+  } else if (letter === 'space') {
+    commitWord();
+    return;
+  } else {
+    state.currentWord += letter;
+    addToHistory(letter);
+  }
+  updateWordDisplay();
+}
+
+// ── Commit word with spellcheck ────────────────────────────────────────────────
+async function commitWord() {
+  if (!state.currentWord.trim()) return;
+
+  const badge = document.getElementById('spell-badge');
+  badge.classList.remove('visible');
+
+  try {
+    const res  = await fetch('/spellcheck', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({word: state.currentWord})
+    });
+    const data = await res.json();
+
+    const finalWord = data.corrected || state.currentWord;
+    const changed   = data.changed;
+
+    state.sentence.push({word: finalWord, corrected: changed});
+    state.currentWord = '';
+    updateWordDisplay();
+    updateSentence();
+
+    if (changed) {
+      badge.textContent = `⚡ "${data.original}" → "${data.corrected}"`;
+      badge.classList.add('visible');
+      setTimeout(() => badge.classList.remove('visible'), 3000);
+    }
+  } catch(e) {
+    // fallback: commit as-is
+    state.sentence.push({word: state.currentWord, corrected: false});
+    state.currentWord = '';
+    updateWordDisplay();
+    updateSentence();
+  }
+}
+
+function deleteLetter() {
+  if (state.currentWord.length > 0) {
+    state.currentWord = state.currentWord.slice(0,-1);
+    updateWordDisplay();
+  }
+}
+
+function clearAll() {
+  state.currentWord = '';
+  state.sentence    = [];
+  document.getElementById('current-word').textContent  = '';
+  document.getElementById('sentence-line').textContent = '_';
+  document.getElementById('history-strip').innerHTML   =
+    '<span style="color:rgba(0,255,231,0.2);font-size:11px;letter-spacing:2px;">AWAITING INPUT...</span>';
+  document.getElementById('current-letter').textContent = '–';
+  document.getElementById('letter-bg').textContent      = '–';
+  document.getElementById('spell-badge').classList.remove('visible');
+}
+
+function updateWordDisplay() {
+  document.getElementById('current-word').textContent = state.currentWord;
+}
+
+function updateSentence() {
+  const el = document.getElementById('sentence-line');
+  el.innerHTML = '';
+  state.sentence.forEach((entry, i) => {
+    const span = document.createElement('span');
+    span.className = 'sentence-word' +
+      (i === state.sentence.length - 1 ? ' new' : '') +
+      (entry.corrected ? ' corrected' : '');
+    span.textContent = entry.word;
+    el.appendChild(span);
+  });
+}
+
+function addToHistory(letter) {
+  const strip = document.getElementById('history-strip');
+  if (strip.querySelector('span[style]')) strip.innerHTML = '';
+  const el = document.createElement('span');
+  el.className   = 'history-letter';
+  el.textContent = letter;
+  strip.appendChild(el);
+  const all = strip.querySelectorAll('.history-letter');
+  if (all.length > 20) all[0].remove();
+}
+
+// ── Skeleton drawing ───────────────────────────────────────────────────────────
+const CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],
+  [0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],
+  [5,9],[9,13],[13,17]
+];
+
+function drawSkeleton(landmarks) {
+  skelCtx.clearRect(0, 0, skelCvs.width, skelCvs.height);
+  if (!landmarks) return;
+  const W = skelCvs.width, H = skelCvs.height;
+
+  skelCtx.strokeStyle = 'rgba(0,255,231,0.7)';
+  skelCtx.lineWidth   = 2;
+  skelCtx.shadowColor = '#00ffe7';
+  skelCtx.shadowBlur  = 8;
+
+  CONNECTIONS.forEach(([a,b]) => {
+    const A = landmarks[a], B = landmarks[b];
+    if (!A || !B) return;
+    skelCtx.beginPath();
+    skelCtx.moveTo((1-A.x)*W, A.y*H);
+    skelCtx.lineTo((1-B.x)*W, B.y*H);
+    skelCtx.stroke();
+  });
+
+  landmarks.forEach((lm, i) => {
+    const x = (1-lm.x)*W, y = lm.y*H;
+    const isTip = [4,8,12,16,20].includes(i);
+    skelCtx.beginPath();
+    skelCtx.arc(x, y, isTip ? 6 : 3, 0, Math.PI*2);
+    skelCtx.fillStyle   = isTip ? '#ff2d78' : '#00ffe7';
+    skelCtx.shadowColor = isTip ? '#ff2d78' : '#00ffe7';
+    skelCtx.shadowBlur  = 12;
+    skelCtx.fill();
+  });
+}
+
+function toggleCamera() {
+  state.running = !state.running;
+  if (state.running) loop();
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────────
+startCamera();
+</script>
+</body>
+</html>
