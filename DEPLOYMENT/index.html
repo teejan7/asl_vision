@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ASL VISION - NEURAL INTERFACE</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --neon-cyan: #00ffe7;
+    --neon-pink: #ff2d78;
+    --neon-purple: #b400ff;
+    --neon-green: #39ff14;
+    --neon-yellow: #ffe600;
+    --dark: #020812;
+    --dark2: #040f1e;
+    --panel: rgba(0, 255, 231, 0.04);
+    --border: rgba(0, 255, 231, 0.15);
+    --glow-cyan: 0 0 10px #00ffe7, 0 0 30px rgba(0, 255, 231, 0.3);
+    --glow-pink: 0 0 10px #ff2d78, 0 0 30px rgba(255, 45, 120, 0.3);
+    --glow-green: 0 0 10px #39ff14, 0 0 30px rgba(57, 255, 20, 0.3);
+    --glow-yellow: 0 0 10px #ffe600, 0 0 30px rgba(255, 230, 0, 0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark);
+    color: var(--neon-cyan);
+    font-family: "Share Tech Mono", monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0, 255, 231, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 255, 231, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.08) 2px,
+      rgba(0, 0, 0, 0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(0, 8, 18, 0.9);
+    backdrop-filter: blur(10px);
+  }
+
+  .logo {
+    font-family: "Orbitron", monospace;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: var(--neon-cyan);
+    text-shadow: var(--glow-cyan);
+  }
+
+  .logo span {
+    color: var(--neon-pink);
+    text-shadow: var(--glow-pink);
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--neon-green);
+    box-shadow: var(--glow-green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  .sys-info {
+    color: rgba(0, 255, 231, 0.5);
+    font-size: 10px;
+  }
+
+  main {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 16px;
+    padding: 16px 24px;
+    height: calc(100vh - 61px);
+  }
+
+  .camera-panel {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .camera-panel::after {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 20px;
+    height: 20px;
+    border-top: 2px solid var(--neon-cyan);
+    border-left: 2px solid var(--neon-cyan);
+    box-shadow: var(--glow-cyan);
+    z-index: 6;
+  }
+
+  .corner-br {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    border-bottom: 2px solid var(--neon-pink);
+    border-right: 2px solid var(--neon-pink);
+    box-shadow: var(--glow-pink);
+    z-index: 6;
+  }
+
+  #video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scaleX(-1);
+  }
+
+  #skeleton-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  .scan-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+    box-shadow: 0 0 8px var(--neon-cyan);
+    animation: scan 3s linear infinite;
+    z-index: 5;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  @keyframes scan {
+    0% { top: 0%; }
+    100% { top: 100%; }
+  }
+
+  .cam-label {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: "Orbitron", monospace;
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: rgba(0, 255, 231, 0.5);
+    z-index: 7;
+  }
+
+  #fps {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(0, 255, 231, 0.4);
+    z-index: 7;
+  }
+
+  .hand-indicator {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    border: 1px solid;
+    border-radius: 2px;
+    z-index: 7;
+    transition: all 0.3s;
+  }
+
+  .hand-indicator.detected {
+    color: var(--neon-green);
+    border-color: var(--neon-green);
+    box-shadow: var(--glow-green);
+  }
+
+  .hand-indicator.none {
+    color: rgba(255, 45, 120, 0.7);
+    border-color: rgba(255, 45, 120, 0.3);
+  }
+
+  .voting-bar-wrap {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    z-index: 7;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .voting-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: rgba(0, 255, 231, 0.4);
+  }
+
+  .voting-bar-bg {
+    width: 100px;
+    height: 4px;
+    background: rgba(0, 255, 231, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .voting-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--neon-cyan);
+    box-shadow: var(--glow-cyan);
+    border-radius: 2px;
+    transition: width 0.1s;
+  }
+
+  .no-hand-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(2, 8, 18, 0.75);
+    z-index: 8;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .no-hand-overlay.visible {
+    opacity: 1;
+  }
+
+  .no-hand-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    animation: float 2s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .no-hand-text {
+    font-family: "Orbitron", monospace;
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: rgba(0, 255, 231, 0.5);
+  }
+
+  .right-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+  }
+
+  .panel {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--panel);
+    padding: 16px 20px;
+    position: relative;
+  }
+
+  .panel-label {
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: rgba(0, 255, 231, 0.4);
+    margin-bottom: 10px;
+    font-family: "Orbitron", monospace;
+  }
+
+  .letter-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100px;
+    position: relative;
+  }
+
+  .letter-bg {
+    position: absolute;
+    font-family: "Orbitron", monospace;
+    font-size: 180px;
+    font-weight: 900;
+    color: rgba(0, 255, 231, 0.03);
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  #current-letter {
+    font-family: "Orbitron", monospace;
+    font-size: 88px;
+    font-weight: 900;
+    color: var(--neon-cyan);
+    text-shadow: var(--glow-cyan), 0 0 60px rgba(0, 255, 231, 0.15);
+    line-height: 1;
+    transition: all 0.15s;
+  }
+
+  #current-letter.flash {
+    animation: letterFlash 0.2s ease;
+  }
+
+  @keyframes letterFlash {
+    0% { transform: scale(1.3); color: #fff; text-shadow: 0 0 40px #fff; }
+    100% { transform: scale(1); }
+  }
+
+  .stats {
+    display: flex;
+    gap: 16px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(0, 255, 231, 0.4);
+    margin-top: 8px;
+  }
+
+  .stat-val {
+    color: var(--neon-cyan);
+  }
+
+  .history-strip {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-height: 32px;
+    align-items: center;
+  }
+
+  .history-letter {
+    font-family: "Orbitron", monospace;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border: 1px solid rgba(0, 255, 231, 0.2);
+    border-radius: 2px;
+    color: rgba(0, 255, 231, 0.6);
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .word-display {
+    font-family: "Orbitron", monospace;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--neon-cyan);
+    text-shadow: var(--glow-cyan);
+    letter-spacing: 4px;
+    min-height: 38px;
+    word-break: break-all;
+    line-height: 1.4;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 3px;
+    height: 26px;
+    background: var(--neon-cyan);
+    box-shadow: var(--glow-cyan);
+    animation: blink 1s infinite;
+    vertical-align: middle;
+    margin-left: 2px;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .spell-badge {
+    display: none;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    color: var(--neon-yellow);
+    border: 1px solid rgba(255, 230, 0, 0.4);
+    text-shadow: var(--glow-yellow);
+    margin-top: 6px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .spell-badge.visible {
+    display: inline-block;
+  }
+
+  #sentence-line {
+    font-family: "Rajdhani", sans-serif;
+    font-size: 16px;
+    font-weight: 300;
+    color: rgba(0, 255, 231, 0.8);
+    letter-spacing: 2px;
+    line-height: 1.6;
+    min-height: 50px;
+    word-break: break-word;
+  }
+
+  .sentence-word {
+    display: inline-block;
+    margin-right: 8px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    transition: all 0.3s;
+  }
+
+  .sentence-word.new {
+    color: var(--neon-green);
+    text-shadow: var(--glow-green);
+    animation: wordAppear 0.5s ease;
+  }
+
+  .sentence-word.corrected {
+    color: var(--neon-yellow);
+    text-shadow: var(--glow-yellow);
+  }
+
+  @keyframes wordAppear {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 8px 14px;
+    border: 1px solid;
+    border-radius: 2px;
+    cursor: pointer;
+    background: transparent;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .btn-cyan {
+    color: var(--neon-cyan);
+    border-color: rgba(0, 255, 231, 0.4);
+  }
+
+  .btn-cyan:hover {
+    background: rgba(0, 255, 231, 0.1);
+    box-shadow: var(--glow-cyan);
+    border-color: var(--neon-cyan);
+  }
+
+  .btn-pink {
+    color: var(--neon-pink);
+    border-color: rgba(255, 45, 120, 0.4);
+  }
+
+  .btn-pink:hover {
+    background: rgba(255, 45, 120, 0.1);
+    box-shadow: var(--glow-pink);
+    border-color: var(--neon-pink);
+  }
+
+  .btn-green {
+    color: var(--neon-green);
+    border-color: rgba(57, 255, 20, 0.4);
+  }
+
+  .btn-green:hover {
+    background: rgba(57, 255, 20, 0.1);
+    box-shadow: var(--glow-green);
+    border-color: var(--neon-green);
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--dark);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 231, 0.3);
+    border-radius: 2px;
+  }
+
+  @media (max-width: 1024px) {
+    main {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+
+    .camera-panel {
+      min-height: 55vh;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ASL<span>.</span>VISION</div>
+  <div class="status-bar">
+    <div class="status-dot"></div>
+    <span>NEURAL INTERFACE v2.0</span>
+    <span class="sys-info" id="sys-time">--:--:--</span>
+  </div>
+</header>
+
+<main>
+  <div class="camera-panel">
+    <div class="scan-line"></div>
+    <div class="cam-label">LIVE FEED - CAM_01</div>
+    <div id="fps">-- FPS</div>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="skeleton-canvas"></canvas>
+    <div class="corner-br"></div>
+    <div class="hand-indicator none" id="hand-indicator">NO HAND</div>
+    <div class="voting-bar-wrap">
+      <div class="voting-label">MAJORITY VOTE</div>
+      <div class="voting-bar-bg"><div class="voting-bar-fill" id="vote-fill"></div></div>
+    </div>
+    <div class="no-hand-overlay" id="no-hand-overlay">
+      <div class="no-hand-icon">&#9995;</div>
+      <div class="no-hand-text">SHOW HAND TO CAMERA</div>
+    </div>
+  </div>
+
+  <div class="right-panels">
+    <div class="panel">
+      <div class="panel-label">DETECTED SIGN</div>
+      <div class="letter-display">
+        <div class="letter-bg" id="letter-bg">-</div>
+        <div id="current-letter">-</div>
+      </div>
+      <div class="stats">
+        <span>FRAMES: <span class="stat-val" id="frame-count">0</span></span>
+        <span>STABLE: <span class="stat-val" id="stable-count">0/10</span></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label">LETTER STREAM</div>
+      <div class="history-strip" id="history-strip">
+        <span style="color:rgba(0,255,231,0.2);font-size:11px;letter-spacing:2px;">AWAITING INPUT...</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label">WORD FORMATION</div>
+      <div class="word-display">
+        <span id="current-word"></span><span class="cursor"></span>
+      </div>
+      <div class="spell-badge" id="spell-badge">SPELL CORRECTED</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label">SENTENCE OUTPUT</div>
+      <div id="sentence-line">_</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label">CONTROLS</div>
+      <div class="controls">
+        <button class="btn btn-green" onclick="commitWord()">SPACE</button>
+        <button class="btn btn-pink" onclick="deleteLetter()">DELETE</button>
+        <button class="btn btn-cyan" onclick="clearAll()">CLEAR ALL</button>
+        <button class="btn btn-cyan" onclick="toggleCamera()">CAM TOGGLE</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const state = {
+  currentWord: "",
+  sentence: [],
+  frameCount: 0,
+  lastVoted: "",
+  sameVoteCount: 0,
+  STABLE_THRESH: 10,
+  COOLDOWN: 18,
+  cooldown: 0,
+  running: true,
+  lastTime: 0,
+  lastPredictAt: 0,
+  MIN_PREDICT_INTERVAL: 66,
+  rafId: 0,
+  inFlight: false,
+};
+
+const video = document.getElementById("video");
+const skelCvs = document.getElementById("skeleton-canvas");
+const skelCtx = skelCvs.getContext("2d");
+const captureCanvas = document.createElement("canvas");
+const captureCtx = captureCanvas.getContext("2d");
+const fpsEl = document.getElementById("fps");
+const sysTimeEl = document.getElementById("sys-time");
+const frameCountEl = document.getElementById("frame-count");
+const stableCountEl = document.getElementById("stable-count");
+const noHandEl = document.getElementById("no-hand-overlay");
+const handIndicatorEl = document.getElementById("hand-indicator");
+const voteFillEl = document.getElementById("vote-fill");
+const currentLetterEl = document.getElementById("current-letter");
+const letterBgEl = document.getElementById("letter-bg");
+const currentWordEl = document.getElementById("current-word");
+const spellBadgeEl = document.getElementById("spell-badge");
+const sentenceLineEl = document.getElementById("sentence-line");
+const historyStripEl = document.getElementById("history-strip");
+
+captureCanvas.width = 320;
+captureCanvas.height = 240;
+
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
+    });
+    video.srcObject = stream;
+    video.onloadedmetadata = () => {
+      skelCvs.width = video.videoWidth;
+      skelCvs.height = video.videoHeight;
+      state.lastTime = performance.now();
+      scheduleLoop();
+    };
+  } catch (error) {
+    console.error("Camera error:", error);
+  }
+}
+
+function scheduleLoop() {
+  if (!state.running || state.rafId) {
+    return;
+  }
+  state.rafId = requestAnimationFrame(loop);
+}
+
+function resetStability() {
+  state.sameVoteCount = 0;
+  state.lastVoted = "";
+  voteFillEl.style.width = "0%";
+  stableCountEl.textContent = "0/" + state.STABLE_THRESH;
+}
+
+function loop(now) {
+  state.rafId = 0;
+  if (!state.running) {
+    return;
+  }
+
+  const fps = state.lastTime
+    ? Math.round(1000 / Math.max(now - state.lastTime, 1))
+    : 0;
+  state.lastTime = now;
+  fpsEl.textContent = fps + " FPS";
+  sysTimeEl.textContent =
+    new Date().toLocaleTimeString("en-US", { hour12: false });
+
+  if (
+    video.videoWidth &&
+    !state.inFlight &&
+    now - state.lastPredictAt >= state.MIN_PREDICT_INTERVAL
+  ) {
+    state.inFlight = true;
+    state.lastPredictAt = now;
+    captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+    const b64 = captureCanvas.toDataURL("image/jpeg", 0.5);
+
+    fetch("/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: b64 })
+    })
+      .then((res) => res.json())
+      .then(processResult)
+      .catch((error) => {
+        console.error("Prediction loop error:", error);
+      })
+      .finally(() => {
+        state.inFlight = false;
+      });
+  }
+
+  scheduleLoop();
+}
+
+function processResult(data) {
+  if (!state.running) {
+    return;
+  }
+
+  state.frameCount += 1;
+  frameCountEl.textContent = state.frameCount;
+
+  if (!data.hand) {
+    noHandEl.classList.add("visible");
+    handIndicatorEl.className = "hand-indicator none";
+    handIndicatorEl.textContent = "NO HAND";
+    skelCtx.clearRect(0, 0, skelCvs.width, skelCvs.height);
+    resetStability();
+    return;
+  }
+
+  noHandEl.classList.remove("visible");
+  handIndicatorEl.className = "hand-indicator detected";
+  handIndicatorEl.textContent = "HAND LOCKED";
+
+  if (data.landmarks) {
+    drawSkeleton(data.landmarks);
+  }
+
+  const voted = data.voted_letter;
+  if (!voted || voted === "-" || voted === "nothing") {
+    resetStability();
+    return;
+  }
+
+  updateLetterDisplay(voted);
+
+  if (voted === state.lastVoted) {
+    state.sameVoteCount = Math.min(state.sameVoteCount + 1, state.STABLE_THRESH);
+  } else {
+    state.sameVoteCount = 0;
+    state.lastVoted = voted;
+  }
+
+  const pct = (state.sameVoteCount / state.STABLE_THRESH) * 100;
+  voteFillEl.style.width = pct + "%";
+  stableCountEl.textContent = state.sameVoteCount + "/" + state.STABLE_THRESH;
+
+  if (state.sameVoteCount >= state.STABLE_THRESH && state.cooldown === 0) {
+    commitLetter(voted);
+    resetStability();
+    state.cooldown = state.COOLDOWN;
+  }
+
+  if (state.cooldown > 0) {
+    state.cooldown -= 1;
+  }
+}
+
+function updateLetterDisplay(letter) {
+  if (currentLetterEl.textContent !== letter) {
+    currentLetterEl.textContent = letter;
+    letterBgEl.textContent = letter;
+    currentLetterEl.classList.remove("flash");
+    void currentLetterEl.offsetWidth;
+    currentLetterEl.classList.add("flash");
+  }
+}
+
+function commitLetter(letter) {
+  if (letter === "del") {
+    if (state.currentWord.length > 0) {
+      state.currentWord = state.currentWord.slice(0, -1);
+    }
+  } else if (letter === "space") {
+    commitWord();
+    return;
+  } else {
+    state.currentWord += letter;
+    addToHistory(letter);
+  }
+  updateWordDisplay();
+}
+
+async function commitWord() {
+  if (!state.currentWord.trim()) {
+    return;
+  }
+
+  spellBadgeEl.classList.remove("visible");
+
+  try {
+    const res = await fetch("/spellcheck", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ word: state.currentWord })
+    });
+    const data = await res.json();
+
+    const finalWord = data.corrected || state.currentWord;
+    const changed = data.changed;
+
+    state.sentence.push({ word: finalWord, corrected: changed });
+    state.currentWord = "";
+    updateWordDisplay();
+    updateSentence();
+
+    if (changed) {
+      spellBadgeEl.textContent = `SPELL CORRECTED: "${data.original}" -> "${data.corrected}"`;
+      spellBadgeEl.classList.add("visible");
+      setTimeout(() => spellBadgeEl.classList.remove("visible"), 3000);
+    }
+  } catch (error) {
+    console.error("Spellcheck error:", error);
+    state.sentence.push({ word: state.currentWord, corrected: false });
+    state.currentWord = "";
+    updateWordDisplay();
+    updateSentence();
+  }
+}
+
+function deleteLetter() {
+  if (state.currentWord.length > 0) {
+    state.currentWord = state.currentWord.slice(0, -1);
+    updateWordDisplay();
+  }
+}
+
+function clearAll() {
+  state.currentWord = "";
+  state.sentence = [];
+  state.frameCount = 0;
+  state.cooldown = 0;
+  currentWordEl.textContent = "";
+  sentenceLineEl.textContent = "_";
+  historyStripEl.innerHTML =
+    '<span style="color:rgba(0,255,231,0.2);font-size:11px;letter-spacing:2px;">AWAITING INPUT...</span>';
+  currentLetterEl.textContent = "-";
+  letterBgEl.textContent = "-";
+  spellBadgeEl.classList.remove("visible");
+  frameCountEl.textContent = "0";
+  resetStability();
+}
+
+function updateWordDisplay() {
+  currentWordEl.textContent = state.currentWord;
+}
+
+function updateSentence() {
+  if (state.sentence.length === 0) {
+    sentenceLineEl.textContent = "_";
+    return;
+  }
+
+  sentenceLineEl.innerHTML = "";
+  state.sentence.forEach((entry, i) => {
+    const span = document.createElement("span");
+    span.className =
+      "sentence-word" +
+      (i === state.sentence.length - 1 ? " new" : "") +
+      (entry.corrected ? " corrected" : "");
+    span.textContent = entry.word;
+    sentenceLineEl.appendChild(span);
+  });
+}
+
+function addToHistory(letter) {
+  if (historyStripEl.querySelector("span[style]")) {
+    historyStripEl.innerHTML = "";
+  }
+
+  const el = document.createElement("span");
+  el.className = "history-letter";
+  el.textContent = letter;
+  historyStripEl.appendChild(el);
+
+  const all = historyStripEl.querySelectorAll(".history-letter");
+  if (all.length > 20) {
+    all[0].remove();
+  }
+}
+
+const CONNECTIONS = [
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [0, 9], [9, 10], [10, 11], [11, 12],
+  [0, 13], [13, 14], [14, 15], [15, 16],
+  [0, 17], [17, 18], [18, 19], [19, 20],
+  [5, 9], [9, 13], [13, 17]
+];
+
+function drawSkeleton(landmarks) {
+  skelCtx.clearRect(0, 0, skelCvs.width, skelCvs.height);
+  if (!landmarks) {
+    return;
+  }
+
+  const width = skelCvs.width;
+  const height = skelCvs.height;
+
+  skelCtx.strokeStyle = "rgba(0,255,231,0.7)";
+  skelCtx.lineWidth = 2;
+  skelCtx.shadowColor = "#00ffe7";
+  skelCtx.shadowBlur = 8;
+
+  CONNECTIONS.forEach(([a, b]) => {
+    const pointA = landmarks[a];
+    const pointB = landmarks[b];
+    if (!pointA || !pointB) {
+      return;
+    }
+    skelCtx.beginPath();
+    skelCtx.moveTo(pointA.x * width, pointA.y * height);
+    skelCtx.lineTo(pointB.x * width, pointB.y * height);
+    skelCtx.stroke();
+  });
+
+  landmarks.forEach((lm, i) => {
+    const x = lm.x * width;
+    const y = lm.y * height;
+    const isTip = [4, 8, 12, 16, 20].includes(i);
+    skelCtx.beginPath();
+    skelCtx.arc(x, y, isTip ? 6 : 3, 0, Math.PI * 2);
+    skelCtx.fillStyle = isTip ? "#ff2d78" : "#00ffe7";
+    skelCtx.shadowColor = isTip ? "#ff2d78" : "#00ffe7";
+    skelCtx.shadowBlur = 12;
+    skelCtx.fill();
+  });
+}
+
+function toggleCamera() {
+  state.running = !state.running;
+  if (state.running) {
+    state.lastTime = performance.now();
+    scheduleLoop();
+  } else if (state.rafId) {
+    cancelAnimationFrame(state.rafId);
+    state.rafId = 0;
+  }
+}
+
+startCamera();
+</script>
+</body>
+</html>

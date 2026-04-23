@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+.env
+.vscode/
+TRAINING/asl_alphabet_train/
+TRAINING/asl_alphabet_test/
+TRAINING/models/
